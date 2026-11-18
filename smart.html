@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="پول هوشمند">
+<meta name="theme-color" content="#0b1020">
+<title>اسکنر پول هوشمند</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#0b1020;color:#e6edf7;font-family:-apple-system,Tahoma,sans-serif;padding:env(safe-area-inset-top) 14px calc(env(safe-area-inset-bottom) + 20px)}
+h1{font-size:20px;margin:18px 0 4px}
+.sub{color:#8da0bd;font-size:13px;margin-bottom:14px;line-height:1.7}
+button{width:100%;padding:15px;border:0;border-radius:14px;background:#6366f1;color:#fff;font-size:17px;font-weight:700}
+button:disabled{opacity:.6}
+#st{color:#8da0bd;font-size:13px;margin:10px 0;min-height:18px}
+.bar{height:4px;background:#1b2440;border-radius:4px;overflow:hidden;margin-top:6px}.bar i{display:block;height:100%;width:0;background:#6366f1;transition:width .2s}
+.c{background:#131a30;border-radius:14px;padding:14px;margin:10px 0;border:1px solid #232d4d}
+.top{display:flex;justify-content:space-between;align-items:center}
+.sym{font-size:18px;font-weight:800}.rk{color:#8da0bd;font-size:12px;font-weight:400}
+.sc{background:#6366f122;color:#a5b4fc;padding:3px 10px;border-radius:20px;font-weight:700;font-size:13px}
+.p{direction:ltr;text-align:right;color:#8da0bd;font-size:13px;margin:4px 0 8px}
+ul{margin:6px 0;padding:0 18px;font-size:13px;color:#c5d1e4;line-height:1.7}
+.lv{direction:ltr;display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px;font-size:12px;text-align:center}
+.lv div{background:#0b1020;border-radius:8px;padding:6px}.lv b{display:block;font-size:13px}
+.r{color:#f87171}.g{color:#4ade80}.y{color:#fbbf24}
+.warn{font-size:11.5px;color:#8da0bd;margin-top:16px;line-height:1.7}
+</style>
+</head>
+<body>
+<h1>🧠 اسکنر پول هوشمند (۴۰۰ ارز برتر)</h1>
+<div class="sub">تشخیص انباشت (Accumulation) با جریان حجم، OBV، CMF، خرید تهاجمی و OI · تایم‌فریم ۴ ساعته و روزانه · هدف: سناریوی صعودی ۱ تا ۲ روز آینده</div>
+<button id="go" onclick="scan()">🔍 اسکن ۴۰۰ ارز</button>
+<div id="st"></div><div class="bar"><i id="pb"></i></div>
+<div id="out"></div>
+<div class="warn">⚠️ «پول هوشمند» اینجا از روی رفتار حجم و قیمت و داده فیوچرز تخمین زده می‌شه، نه ردیابی کیف‌پول نهنگ‌ها. پیش‌بینی قطعی نیست و توصیه مالی محسوب نمی‌شه. «سطح تأیید» یعنی ورود فقط بعد از بسته‌شدن کندل ۴ ساعته بالای اون سطح منطقیه، و حد ضرر رو حتماً رعایت کنید.</div>
+<script>
+const BH=["https://data-api.binance.vision","https://api.binance.com"];
+const STABLE=new Set(["USDT","USDC","FDUSD","TUSD","USDP","DAI","USDE","USDS","BUSD","PYUSD","USD1","XUSD","BFUSD","WBTC","STETH","WSTETH","WBETH","WEETH","BTCB","USDD","EURI","EUR","PAXG","XAUT","BSC-USD","SUSDE","BUIDL","USDY","USDG","USDT0","CBBTC"]);
+const $=id=>document.getElementById(id);
+async function bapi(p){for(const h of BH){try{const r=await fetch(h+p);if(r.ok)return await r.json()}catch(e){}}throw new Error("b")}
+async function getJ(u){const r=await fetch(u);if(!r.ok)throw new Error("h"+r.status);return r.json()}
+const avg=a=>a.reduce((x,y)=>x+y,0)/(a.length||1);
+const sum=a=>a.reduce((x,y)=>x+y,0);
+const fp=p=>p>=1?p.toFixed(p>=100?2:4):p.toPrecision(4);
+const ema=(a,p)=>{const k=2/(p+1);let e=a[0];const o=[e];for(let i=1;i<a.length;i++){e=a[i]*k+e*(1-k);o.push(e)}return o};
+function rsi(c,p=14){let g=0,l=0;for(let i=1;i<=p;i++){const d=c[i]-c[i-1];d>0?g+=d:l-=d}g/=p;l/=p;for(let i=p+1;i<c.length;i++){const d=c[i]-c[i-1];g=(g*(p-1)+Math.max(d,0))/p;l=(l*(p-1)+Math.max(-d,0))/p}return l===0?100:100-100/(1+g/l)}
+const P=k=>({c:k.map(x=>+x[4]),h:k.map(x=>+x[2]),l:k.map(x=>+x[3]),v:k.map(x=>+x[5]),tb:k.map(x=>+x[9])});
+const cmf=(X,p=20)=>{let a=0,b=0;for(let i=X.c.length-p;i<X.c.length;i++){const r=X.h[i]-X.l[i];a+=(r?((X.c[i]-X.l[i])-(X.h[i]-X.c[i]))/r:0)*X.v[i];b+=X.v[i]}return b?a/b:0};
+const obvChg=(X,p)=>{let o=0,s=0;const n=X.c.length;for(let i=n-p;i<n;i++){const d=X.c[i]-X.c[i-1];o+=d>0?X.v[i]:d<0?-X.v[i]:0;s+=X.v[i]}return s?o/s:0};
+
+function analyze(k4,kd,chg24){
+  const A=P(k4.slice(0,-1)),D=P(kd.slice(0,-1));
+  const n=A.c.length,nd=D.c.length,price=A.c[n-1];
+  let s=0;const why=[];
+  const c4=cmf(A,20);
+  if(c4>0.15){s+=14;why.push("CMF ۴ساعته "+c4.toFixed(2)+" (جریان پول قوی به داخل)")}else if(c4>0.05){s+=9;why.push("CMF ۴ساعته مثبت (ورود پول)")}
+  const ob=obvChg(A,30),pc=price/A.c[n-31]-1;
+  if(ob>0.15&&pc<0.06){s+=16;why.push("واگرایی OBV: حجم خرید بالا رفته ولی قیمت هنوز حرکت نکرده (انباشت)")}else if(ob>0.1){s+=8;why.push("OBV در حال رشد")}
+  const tk=sum(A.tb.slice(-12))/sum(A.v.slice(-12));
+  if(tk>0.54){s+=12;why.push("خرید تهاجمی "+(tk*100).toFixed(0)+"٪ حجم ۴۸ ساعت اخیر")}else if(tk>0.51){s+=7;why.push("غلبه خریداران در حجم")}
+  const hh=Math.max(...A.h.slice(-20)),ll=Math.min(...A.l.slice(-20));
+  if((hh-ll)/price<0.10){s+=8;why.push("قیمت در باکس فشرده (آماده شکست)")}
+  const m=[0,1,2].map(i=>Math.min(...A.l.slice(n-30+i*10,n-20+i*10)));
+  if(m[0]<m[1]&&m[1]<m[2]){s+=10;why.push("کف‌های بالاتر (Higher Lows)")}
+  const bw=[];for(let i=20;i<=n;i++){const w=A.c.slice(i-20,i),mm=avg(w),sd=Math.sqrt(avg(w.map(x=>(x-mm)**2)));bw.push(4*sd/mm)}
+  if(bw.filter(x=>x<=bw[bw.length-1]).length/bw.length<=.3){s+=6;why.push("فشردگی بولینگر")}
+  const r=rsi(A.c);
+  if(r>=45&&r<=62){s+=8;why.push("RSI ۴ساعته "+r.toFixed(0)+" (جای رشد دارد)")}else if(r>70){s-=10;why.push("⚠️ RSI بالا؛ ممکنه دیر شده باشه")}else if(r<38)s-=6;
+  if(price>ema(A.c,50)[n-1])s+=5;
+  const vr=avg(A.v.slice(-6))/avg(A.v.slice(-36,-6)),pc6=price/A.c[n-7]-1;
+  if(vr>1.2&&Math.abs(pc6)<0.03){s+=6;why.push("حجم "+vr.toFixed(1)+" برابر با قیمت ثابت (جذب عرضه)")}
+  const cd=cmf(D,20);
+  if(cd>0.05){s+=8;why.push("CMF روزانه مثبت")}
+  if(obvChg(D,20)>0.1){s+=8;why.push("OBV روزانه صعودی")}
+  if(D.c[nd-1]>ema(D.c,20)[nd-1])s+=4;
+  const pc7=D.c[nd-1]/D.c[nd-8]-1;
+  if(pc7>0.25){s-=15;why.push("⚠️ در ۷ روز اخیر "+(pc7*100).toFixed(0)+"٪ رشد کرده (دیر شده)")}
+  if(chg24>12)s-=10;
+  const tr=[];for(let i=n-14;i<n;i++)tr.push(Math.max(A.h[i]-A.l[i],Math.abs(A.h[i]-A.c[i-1]),Math.abs(A.l[i]-A.c[i-1])));
+  const atr=avg(tr);
+  return{score:Math.max(0,Math.round(s*100/105)),why,price,trig:hh,stop:Math.min(Math.min(...A.l.slice(-10)),price-2*atr),t1:price+2.5*atr,t2:price+5*atr,pc48:price/A.c[n-13]-1};
+}
+
+async function scan(){
+  $("go").disabled=true;$("out").innerHTML="";$("pb").style.width="0";
+  try{
+    $("st").textContent="دریافت لیست ۴۰۰ ارز برتر…";
+    const tick=await bapi("/api/v3/ticker/24hr");
+    const map={};tick.forEach(t=>{if(t.symbol.endsWith("USDT"))map[t.symbol.slice(0,-4)]=t});
+    let ranked=[],fb=false;
+    try{const [a,b]=await Promise.all([1,2].map(p=>getJ("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=200&page="+p)));ranked=[...a,...b].map(x=>({s:x.symbol.toUpperCase(),rank:x.market_cap_rank}))}catch(e){}
+    if(!ranked.length){fb=true;ranked=Object.values(map).sort((a,b)=>b.quoteVolume-a.quoteVolume).slice(0,400).map((t,i)=>({s:t.symbol.slice(0,-4),rank:i+1}))}
+    const seen=new Set(),list=[];
+    for(const x of ranked){if(STABLE.has(x.s)||seen.has(x.s)||!map[x.s]||+map[x.s].quoteVolume<1e6)continue;seen.add(x.s);list.push({...x,t:map[x.s]})}
+    const res=[];let done=0;
+    for(let i=0;i<list.length;i+=8){
+      await Promise.all(list.slice(i,i+8).map(async x=>{
+        try{
+          const [a,b]=await Promise.all([bapi("/api/v3/klines?symbol="+x.s+"USDT&interval=4h&limit=100"),bapi("/api/v3/klines?symbol="+x.s+"USDT&interval=1d&limit=60")]);
+          if(a.length<60||b.length<30)return;
+          const r=analyze(a,b,+x.t.priceChangePercent);r.sym=x.s;r.rank=x.rank;r.chg=+x.t.priceChangePercent;res.push(r);
+        }catch(e){}
+        done++;$("st").textContent="تحلیل "+done+" از "+list.length+"…";$("pb").style.width=(done/list.length*100)+"%";
+      }));
+    }
+    res.sort((a,b)=>b.score-a.score);
+    const top=res.slice(0,15);
+    $("st").textContent="بررسی فیوچرز (OI و فاندینگ)…";
+    let fund={};try{(await getJ("https://fapi.binance.com/fapi/v1/premiumIndex")).forEach(f=>fund[f.symbol]=+f.lastFundingRate)}catch(e){}
+    await Promise.all(top.map(async x=>{
+      try{
+        const o=await getJ("https://fapi.binance.com/futures/data/openInterestHist?symbol="+x.sym+"USDT&period=4h&limit=12");
+        const ch=+o[o.length-1].sumOpenInterestValue/+o[0].sumOpenInterestValue-1;
+        if(ch>0.05&&Math.abs(x.pc48)<0.05){x.score+=8;x.why.push("Open Interest "+(ch*100).toFixed(0)+"٪ بیشتر شده در حالی که قیمت ثابته (پوزیشن‌گیری)")}
+        else if(ch<-0.1)x.score-=4;
+      }catch(e){}
+      const f=fund[x.sym+"USDT"];
+      if(f!==undefined){if(f<-0.0001){x.score+=4;x.why.push("فاندینگ منفی (سوخت شورت‌اسکوئیز)")}else if(f>0.0005){x.score-=6;x.why.push("⚠️ فاندینگ بالا (ازدحام لانگ‌ها)")}}
+      x.score=Math.min(100,Math.max(0,x.score));
+    }));
+    top.sort((a,b)=>b.score-a.score);
+    const show=top.slice(0,Math.max(5,Math.min(8,top.filter(x=>x.score>=60).length)));
+    $("pb").style.width="100%";
+    $("st").textContent="✅ "+list.length+" ارز بررسی شد · "+new Date().toLocaleTimeString("fa-IR")+(fb?" · (رتبه‌بندی بر اساس حجم، چون CoinGecko در دسترس نبود)":"");
+    $("out").innerHTML=show.map((x,i)=>{const lb=x.score>=70?'<span class="g">قوی</span>':x.score>=55?'<span class="y">متوسط</span>':'<span class="r">ضعیف</span>';
+    return `<div class="c"><div class="top"><span class="sym">${i+1}. ${x.sym} <span class="rk">رتبه ${x.rank}</span></span><span class="sc">امتیاز ${x.score} · ${lb}</span></div>
+    <div class="p">${fp(x.price)} USDT · 24h: ${x.chg>0?"+":""}${x.chg.toFixed(1)}%</div>
+    <ul>${x.why.map(w=>"<li>"+w+"</li>").join("")}</ul>
+    <div class="lv"><div class="y">سطح تأیید (بسته‌شدن ۴h بالای آن)<b>${fp(x.trig)}</b></div><div class="r">حد ضرر<b>${fp(x.stop)}</b></div><div class="g">هدف ۱<b>${fp(x.t1)}</b></div><div class="g">هدف ۲<b>${fp(x.t2)}</b></div></div></div>`}).join("");
+    if(!show.length)$("st").textContent="داده‌ای دریافت نشد.";
+  }catch(e){$("st").innerHTML="❌ اتصال برقرار نشد. اینترنت را چک کنید یا VPN روشن کنید (و اگر CoinGecko خطا داد ۱ دقیقه صبر کنید) و دوباره بزنید."}
+  $("go").disabled=false;
+}
+(function(){const c=document.createElement("canvas");c.width=c.height=180;const x=c.getContext("2d");x.fillStyle="#0b1020";x.fillRect(0,0,180,180);x.strokeStyle="#818cf8";x.lineWidth=12;x.lineCap="round";x.lineJoin="round";x.beginPath();x.moveTo(30,135);x.lineTo(70,95);x.lineTo(100,115);x.lineTo(150,45);x.stroke();x.fillStyle="#a5b4fc";x.beginPath();x.arc(150,45,12,0,7);x.fill();const l=document.createElement("link");l.rel="apple-touch-icon";l.href=c.toDataURL("image/png");document.head.appendChild(l)})();
+</script>
+</body>
+</html>
